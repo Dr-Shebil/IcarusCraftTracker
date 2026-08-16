@@ -1,0 +1,13 @@
+﻿# Ignore Videos & Media
+*.mp4
+*.mkv
+*.avi
+*.mov
+Movies/
+*.tmp
+
+# Logs and Dumps
+*.log
+*.dmp
+*.pdb
+.sentry-native/
