@@ -1,7 +1,7 @@
--- IcarusCraftTracker v45.0 - Verified Master Engine (Restored 100% Working UI)
--- 1. Proven reliable UI rendering & instant uncollapse on MMB pin
--- 2. Clean 1:1 inventory reading with slot index deduplication
--- 3. Dynamic row auto-collapsing for recipes with 1 to 6 ingredients
+-- IcarusCraftTracker v46.0 - Startup Safe Engine
+-- 1. Strictly Ignores TitleScreen / StartMap / Hab transitions to prevent startup crashes
+-- 2. Initializes UI & Recipe hooks ONLY when player character is fully spawned in world
+-- 3. Exact 1:1 slot-deduplicated inventory counting
 -- 4. Top-Center elevated frosted glass card
 
 local HOVERED_RECIPE = nil
@@ -12,7 +12,7 @@ local hooksSetup = false
 local RECIPE_DATABASE = {}
 local ITEM_DISPLAY_NAMES = {}
 
--- Load chunks into master database
+-- Load chunks into master database safely
 for i = 1, 6 do
     local success, chunk = pcall(require, "Recipes_Chunk" .. i)
     if success and type(chunk) == "table" then
@@ -32,7 +32,7 @@ if not RECIPE_DATABASE["Wood_Crop_Plot"] and not RECIPE_DATABASE["Recipe_Wood_Cr
     RECIPE_DATABASE["Recipe_Wood_Crop_Plot"] = { Inputs = { { Item = "Wood", Count = 8 }, { Item = "Sulfur", Count = 10 }, { Item = "Dirt", Count = 20 } } }
 end
 
--- Load official item display names extracted from data.pak
+-- Load official item display names
 local okNames, nameTable = pcall(require, "ItemDisplayNames")
 if okNames and type(nameTable) == "table" then
     ITEM_DISPLAY_NAMES = nameTable
@@ -428,6 +428,9 @@ local function GetCurrentlySelectedRecipeFromUI()
 end
 
 local function SetupHooks()
+    if hooksSetup then return end
+    hooksSetup = true
+
     pcall(function()
         RegisterHook("/Game/UI/Windows/UMG_Crafting.UMG_Crafting_C:Selected Recipe Updated", function(self, NewRecipe)
             pcall(function()
@@ -438,7 +441,6 @@ local function SetupHooks()
                 local txt = SafeGetText(self, "RecipeName")
                 if txt then HOVERED_RECIPE = txt end
             end)
-            if PINNED_RECIPE then UpdateHUDWidget() end
         end)
     end)
 
@@ -448,26 +450,30 @@ local function SetupHooks()
                 local rowStr = ExtractFromParam(Recipe)
                 if rowStr then HOVERED_RECIPE = rowStr end
             end)
-            if PINNED_RECIPE then UpdateHUDWidget() end
         end)
     end)
+
+    print("[CraftTracker] World crafting hooks registered safely.")
 end
 
--- Level Transition / World Change Handler
-RegisterHook("/Script/Engine.PlayerController:ClientRestart", function()
+-- Strictly attaches hooks when player character enters an active playable map
+RegisterHook("/Script/Engine.PlayerController:ClientRestart", function(self)
     PINNED_RECIPE = nil
     HOVERED_RECIPE = nil
     LAST_RENDERED_SIGNATURE = ""
     SetHUDCardVisible(false)
 
-    if not hooksSetup then
-        hooksSetup = true
-        SetupHooks()
-        print("[CraftTracker] World hooks initialized successfully!")
-    end
+    -- Guard against TitleScreen / StartMap initialization
+    pcall(function()
+        local pawn = self:get():K2_GetPawn()
+        if pawn and pawn:IsValid() then
+            local fullName = tostring(pawn:GetFullName() or "")
+            if fullName:find("Player", 1, true) or fullName:find("Survival", 1, true) or fullName:find("Character", 1, true) then
+                SetupHooks()
+            end
+        end
+    end)
 end)
-
-SetupHooks()
 
 -- Top-Level Keybinds
 pcall(function()
@@ -498,4 +504,4 @@ pcall(function()
     end)
 end)
 
-print("[CraftTracker] v45.0 Master Build loaded! (Restored 100% Working UI Engine)")
+print("[CraftTracker] v46.0 Master Build loaded! (Startup Safe Engine)")
